@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>2D WORLD</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:Arial,sans-serif;background:#090b20;color:#fff}
+body{background:linear-gradient(135deg,#090b20 0%,#21134f 48%,#087b91 100%)}
+canvas{display:block;position:fixed;inset:0}
+button{border:0;color:#fff;background:linear-gradient(135deg,#7657ff,#23b7ff);border-radius:14px;padding:11px 16px;font-size:15px;font-weight:700;box-shadow:0 7px 20px #0005;cursor:pointer;transition:.15s;touch-action:none}
+button:hover{transform:translateY(-2px);filter:brightness(1.08)}
+button:active{transform:scale(.96)}
+#hud{position:fixed;top:14px;left:14px;right:14px;z-index:10;display:flex;align-items:center;gap:10px}
+.brand{padding:10px 14px;border-radius:16px;background:#ffffff18;border:1px solid #ffffff25;backdrop-filter:blur(12px);font-weight:900}
+.pill{display:flex;align-items:center;gap:7px;padding:10px 14px;border-radius:16px;background:#ffffff18;border:1px solid #ffffff25;backdrop-filter:blur(12px);font-weight:800}
+.hudRight{margin-left:auto;display:flex;gap:8px}
+#panel{position:fixed;z-index:30;left:4%;right:4%;top:5%;bottom:5%;padding:22px;overflow:auto;border:1px solid #ffffff22;border-radius:28px;background:linear-gradient(145deg,#151833ee,#25134fee);backdrop-filter:blur(20px);box-shadow:0 25px 80px #0008}
+#panel h1{margin:0 0 8px;font-size:30px}
+.sub{color:#c9c7e8;margin-bottom:20px}
+.hidden{display:none!important}
+.close{float:right;background:#ffffff18;border:1px solid #ffffff22}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+.card{position:relative;min-height:170px;padding:20px;border-radius:22px;border:1px solid #ffffff20;background:linear-gradient(145deg,#ffffff16,#ffffff07);box-shadow:0 15px 35px #0003;overflow:hidden}
+.card:before{content:"";position:absolute;width:130px;height:130px;right:-50px;top:-50px;border-radius:50%;background:#6e5cff55;filter:blur(8px)}
+.icon{font-size:45px}
+.card h2{margin:8px 0 5px}
+.card p{color:#c8c6e4;min-height:38px}
+.card button{width:100%}
+.profile{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:16px;background:#ffffff12;border:1px solid #ffffff20}
+.avatarBig{font-size:35px}
+#controls{position:fixed;left:14px;right:14px;bottom:25px;z-index:12;display:flex;justify-content:space-between;pointer-events:none}
+#move{display:flex;gap:8px}
+.ctrl{width:68px;height:58px;padding:0;font-size:25px;background:#ffffff18;border:1px solid #ffffff30;backdrop-filter:blur(12px);pointer-events:auto}
+#attack{position:fixed;right:14px;bottom:95px;z-index:12;width:78px;height:62px;padding:0;font-size:25px;background:linear-gradient(135deg,#ff4d6d,#ff8a3d)}
+#fightHud{position:fixed;top:82px;left:50%;transform:translateX(-50%);z-index:12;display:none;width:min(360px,80vw)}
+.bar{height:16px;border-radius:99px;background:#0007;overflow:hidden;border:1px solid #fff3}
+.fill{height:100%;background:linear-gradient(90deg,#ff3f68,#ff9f43);transition:.15s}
+#toast{position:fixed;left:50%;top:18%;transform:translate(-50%,-50%);z-index:50;padding:13px 18px;border-radius:15px;background:#080b20dd;border:1px solid #ffffff25;opacity:0;pointer-events:none;transition:.25s}
+.shopGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.shopItem{padding:16px;border-radius:20px;background:#ffffff10;border:1px solid #ffffff1d}
+.shopIcon{font-size:42px}
+.price{color:#ffd95a;font-weight:900;margin:8px 0}
+@media(max-width:600px){
+#hud{top:8px;left:8px;right:8px}.brand{display:none}.pill{padding:8px 11px}
+#panel{left:3%;right:3%;top:3%;bottom:3%;padding:17px}
+.card{min-height:150px}
+}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+<div class="brand">🌌 2D WORLD</div>
+<div class="profile"><span id="avatarHud" class="avatarBig">👨‍⚕️</span><span>플레이어</span></div>
+<div class="hudRight">
+<div class="pill">💰 <span id="money">1000</span></div>
+<button onclick="home()">🏠</button>
+</div>
+</div>
+
+<div id="fightHud">
+<div style="display:flex;justify-content:space-between;font-weight:800;margin-bottom:5px"><span>❤️ 내 체력</span><span id="hpText">100/100</span></div>
+<div class="bar"><div id="hpFill" class="fill" style="width:100%"></div></div>
+</div>
+
+
+<div id="controls">
+<div id="move">
+<button class="ctrl" id="left">◀</button>
+<button class="ctrl" id="right">▶</button>
+</div>
+<button class="ctrl" id="jump">⬆</button>
+</div>
+<button id="attack" onclick="attack()">⚔️</button>
+
+<div id="panel" class="hidden"></div>
+<div id="toast"></div>
+
+<script>
+const canvas=document.getElementById("game"),ctx=canvas.getContext("2d");
+let W=innerWidth,H=innerHeight;
+function resize(){W=canvas.width=innerWidth;H=canvas.height=innerHeight}
+addEventListener("resize",resize);
+
+let mode="home",money=1000,avatar="👨‍⚕️",camera=0,left=false,right=false,attacking=false,swordCooldown=0,rewardGiven=false;
+let audioCtx=null;
+const PHYS={gravity:.32,jump:-15.5,maxFall:11.5,move:4.8,accel:.72,friction:.82};
+let mathIndex=0,mathSolved=false,mathQuestions=[];
+let player={x:100,y:500,w:45,h:55,vy:0,vx:0,ground:false,hp:100,maxHp:100,inv:0};
+const avatars=["👨‍⚕️","👨‍🌾","👨‍💼","👨‍🔬","🧑‍🎤","👮‍♂️","🥷","🏋"];
+const npcs=["🧑‍🏭","👲","🤵‍♂️","🤴","💂‍♂️","🧑‍🎨","🕵","🕴","🕺","🏃‍♂️","👩‍🦯","⛷️","🏋","🚴‍♂️","🤹"];
+const normal=[{x:0,y:650,w:5000,h:200},{x:500,y:540,w:180,h:30},{x:850,y:470,w:180,h:30},{x:1200,y:550,w:200,h:30},{x:1550,y:450,w:200,h:30}];
+const obby=[{x:0,y:650,w:400,h:200},{x:500,y:550,w:150,h:30},{x:750,y:470,w:130,h:30},{x:1000,y:390,w:130,h:30},{x:1250,y:500,w:130,h:30},{x:1500,y:400,w:130,h:30},{x:1750,y:320,w:150,h:30},{x:2050,y:450,w:150,h:30},{x:2350,y:350,w:180,h:30},{x:2700,y:250,w:180,h:30},{x:3050,y:350,w:140,h:30},{x:3300,y:460,w:140,h:30},{x:3550,y:300,w:150,h:30},{x:3850,y:220,w:180,h:30},{x:4200,y:320,w:180,h:30}];
+const math=[{x:0,y:650,w:500,h:200},{x:600,y:560,w:180,h:30},{x:900,y:480,w:180,h:30},{x:1200,y:400,w:180,h:30},{x:1500,y:320,w:180,h:30},{x:1800,y:240,w:180,h:30},{x:2100,y:160,w:180,h:30}];
+const items=[["🕶️","썬글라스",500],["🥽","방어안경",20],["👑","왕",200],["💎","다이아",400],["⛑️","안전모",10],["🪘","음악",38]];
+const emotes=[["🤸‍♂️","운동",200000],["🤹‍♂️","개그",40000],["🕺","마이클잭슨",3740],["🕴","공중부양",48017]];
+let enemies=[];
+
+function audio(){
+ if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+ if(audioCtx.state==="suspended")audioCtx.resume();
+}
+function tone(freq,duration,type="sine",volume=.045,endFreq=freq){
+ audio();
+ const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+ o.type=type;o.frequency.setValueAtTime(freq,audioCtx.currentTime);o.frequency.exponentialRampToValueAtTime(Math.max(40,endFreq),audioCtx.currentTime+duration);
+ g.gain.setValueAtTime(volume,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+duration);
+ o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+duration);
+}
+function coinSound(){tone(620,.08,"sine",.055,900);setTimeout(()=>tone(900,.12,"sine",.045,1180),65)}
+function swordSound(){tone(180,.07,"sawtooth",.035,90);setTimeout(()=>tone(760,.05,"triangle",.025,420),20)}
+function hitSound(){tone(110,.09,"square",.035,70)}
+function jumpSound(){tone(280,.07,"triangle",.025,470)}
+function correctSound(){tone(520,.08,"sine",.05,760);setTimeout(()=>tone(760,.12,"sine",.045,1040),70)}
+function wrongSound(){tone(180,.16,"square",.04,100)}
+function moneyUI(){document.getElementById("money").textContent=money.toLocaleString()}
+function avatarUI(){document.getElementById("avatarHud").textContent=avatar}
+function reset(){
+ player.x=100;player.y=500;player.vy=0;player.hp=100;player.inv=0;player.ground=false;player.vx=0;camera=0;mathIndex=0;mathSolved=false;rewardGiven=false;
+}
+function show(html){document.getElementById("panel").innerHTML=html;document.getElementById("panel").classList.remove("hidden")}
+function closePanel(){document.getElementById("panel").classList.add("hidden")}
+function toast(t){const e=document.getElementById("toast");e.textContent=t;e.style.opacity=1;clearTimeout(window.tt);window.tt=setTimeout(()=>e.style.opacity=0,1800)}
+
+function home(){
+ mode="home";reset();
+ document.getElementById("fightHud").style.display="none";
+ document.getElementById("attack").style.display="none";
+ show(`<button class="close" onclick="closePanel()">✕</button><h1>🌌 2D WORLD</h1><div class="sub">원하는 게임을 골라 플레이해봐!</div><div class="cards">
+ <div class="card"><div class="icon">🧗</div><h2>점프맵 + 보상맵</h2><p>긴 코스를 끝까지 달리면 💰 보상!</p><button onclick="start('obby')">PLAY</button></div>
+ <div class="card"><div class="icon">🧮</div><h2>수학 점프맵 타워</h2><p>수학 문제와 함께 올라가자.</p><button onclick="start('math')">PLAY</button></div>
+ <div class="card"><div class="icon">⚔️</div><h2>NPC랑 검싸움 렛츠고!</h2><p>NPC도 움직이고 공격한다!</p><button onclick="start('fight')">PLAY</button></div>
+ <div class="card"><div class="icon">🛒</div><h2>💰 상점 맵</h2><p>게임 속 💰으로 아이템과 이모트를 구매.</p><button onclick="shop()">ENTER</button></div>
+ </div>`);
+}
+
+function start(m){
+ mode=m;reset();closePanel();
+ if(m==="math")makeMath();
+ if(m==="fight"){
+  enemies=[
+   {x:650,y:595,hp:3,maxHp:3,emoji:"🤖",speed:1.4,attack:0,alive:true},
+   {x:1000,y:595,hp:3,maxHp:3,emoji:"👹",speed:1.7,attack:30,alive:true},
+   {x:1400,y:595,hp:4,maxHp:4,emoji:"🥷",speed:1.9,attack:50,alive:true},
+   {x:1800,y:595,hp:5,maxHp:5,emoji:"🕴",speed:1.3,attack:80,alive:true}
+  ];
+  document.getElementById("fightHud").style.display="block";
+  document.getElementById("attack").style.display="block";
+ }else{
+  document.getElementById("fightHud").style.display="none";
+  document.getElementById("attack").style.display="none";
+ }
+}
+
+function avatarMenu(){
+ show(`<button class="close" onclick="closePanel()">✕</button><h1>👤 아바타</h1><div class="sub">내 캐릭터를 골라봐.</div><div class="cards">${avatars.map(a=>`<div class="card" style="min-height:120px;text-align:center"><div class="icon">${a}</div><button onclick="chooseAvatar('${a}')">선택</button></div>`).join("")}</div>`);
+}
+function chooseAvatar(a){avatar=a;avatarUI();closePanel()}
+
+function shop(){
+ const make=(list,emo)=>list.map((x,i)=>`<div class="shopItem"><div class="shopIcon">${x[0]}</div><h3>${x[1]}</h3><div class="price">💰 ${x[2].toLocaleString()}</div><button onclick="buy(${i},${emo})">구매</button></div>`).join("");
+ show(`<button class="close" onclick="home()">✕</button><h1>🛒 💰 상점</h1><div class="sub">게임 속 가상 💰만 사용해.</div><h2>아이템</h2><div class="shopGrid">${make(items,false)}</div><h2>이모트</h2><div class="shopGrid">${make(emotes,true)}</div>`);
+}
+function buy(i,emo){
+ const x=(emo?emotes:items)[i];
+ if(money<x[2]){toast("💰이 부족해!");return}
+ money-=x[2];moneyUI();toast(`${x[0]} ${x[1]} 구매 완료!`);
+}
+
+function makeMath(){
+ mathQuestions=[
+  {q:"3 × 4 = ?",a:["10","12","14"],c:"12"},
+  {q:"18 ÷ 3 = ?",a:["5","6","7"],c:"6"},
+  {q:"7 × 6 = ?",a:["36","42","48"],c:"42"},
+  {q:"25 + 17 = ?",a:["40","42","44"],c:"42"},
+  {q:"56 ÷ 7 = ?",a:["7","8","9"],c:"8"},
+  {q:"9 × 3 = ?",a:["27","24","21"],c:"27"}
+ ];
+ showMathQuestion();
+}
+function showMathQuestion(){
+ const q=mathQuestions[mathIndex];
+ show(`<button class="close" onclick="home()">✕</button><h1>🧮 문제 ${mathIndex+1}/${mathQuestions.length}</h1><div class="sub">정답을 골라야 다음 구간으로 갈 수 있어!</div><div class="card" style="text-align:center"><div style="font-size:38px;font-weight:900;margin:15px">${q.q}</div><div class="cards">${q.a.map(a=>`<button onclick="answerMath('${a}')">${a}</button>`).join("")}</div></div>`);
+}
+function answerMath(a){
+ const q=mathQuestions[mathIndex];
+ if(a!==q.c){wrongSound();toast("❌ 틀렸어! 다시 풀어봐.");return}
+ correctSound();mathIndex++;
+ if(mathIndex>=mathQuestions.length){money+=150;moneyUI();coinSound();toast("🎉 수학 타워 클리어! 💰 +150");setTimeout(home,900);return}
+ closePanel();mathSolved=true;setTimeout(()=>{mathSolved=false;showMathQuestion()},350);
+} 
+function platforms(){
+ if(mode==="obby")return obby;
+ if(mode==="math")return math;
+ return [{x:0,y:650,w:5000,h:200}];
+}
+
+function jump(){
+ if(player.ground){player.vy=PHYS.jump;player.ground=false;jumpSound()}
+}
+function attack(){
+ if(mode!=="fight"||swordCooldown>0)return;
+ swordCooldown=22;attacking=true;swordSound();
+ for(const e of enemies){
+  if(e.alive&&Math.abs(player.x-e.x)<105){
+   e.hp--;hitSound();
+   if(e.hp<=0){e.alive=false;money+=25;moneyUI();coinSound();toast("NPC 처치! 💰 +25")}
+  }
+ }
+ setTimeout(()=>attacking=false,150);
+}
+
+function spawnEnemy(){const types=[["🤖",1.4,3],["👹",1.7,3],["🥷",1.9,4],["🕴",1.3,5],["👾",1.6,4],["💀",1.5,4]];const t=types[Math.floor(Math.random()*types.length)];const side=Math.random()<0.5?-1:1;const x=Math.max(250,player.x+side*(520+Math.random()*180));enemies.push({x:x,y:595,hp:t[2],maxHp:t[2],emoji:t[0],speed:t[1],attack:30,alive:true})}
+function updateFight(){
+ for(const e of enemies){
+  if(!e.alive)continue;
+  const dx=player.x-e.x;
+  if(Math.abs(dx)>65)e.x+=Math.sign(dx)*e.speed;
+  else if(e.attack<=0){
+   if(player.inv<=0){
+    player.hp=Math.max(0,player.hp-10);
+    player.inv=45;
+   }
+   e.attack=55;
+  }
+  if(e.attack>0)e.attack--;
+ }
+ if(enemies.filter(e=>e.alive).length<3&&Math.random()<0.025)spawnEnemy();
+ if(player.hp<=0){
+  toast("패배! 다시 시작합니다.");
+  setTimeout(()=>start("fight"),500);
+ }
+}
+
+function update(){
+ const input=(right?1:0)+(left?-1:0);
+ if(input!==0)player.vx+=input*PHYS.accel;
+ else player.vx*=PHYS.friction;
+ player.vx=Math.max(-PHYS.move,Math.min(PHYS.move,player.vx));
+ player.x+=player.vx;
+ if(player.x<0){player.x=0;player.vx=0}
+ const prevVy=player.vy;
+ player.vy+=PHYS.gravity;
+ if(player.vy>PHYS.maxFall)player.vy=PHYS.maxFall;
+ const prevBottom=player.y+player.h;
+ player.y+=player.vy;
+ player.ground=false;
+ for(const p of platforms()){
+  if(player.x+player.w>p.x&&player.x<p.x+p.w&&prevBottom<=p.y&&player.y+player.h>=p.y&&prevVy>=0){
+   player.y=p.y-player.h;player.vy=0;player.ground=true;
+  }
+ }
+ if(player.y>850)reset();
+ if(mode==="fight")updateFight();
+ if(player.inv>0)player.inv--;
+ if(swordCooldown>0)swordCooldown--;
+ camera=Math.max(0,player.x-W/2);
+ if(mode==="obby"&&player.x>=4200&&!rewardGiven){
+  rewardGiven=true;money+=100;moneyUI();coinSound();toast("🎉 점프맵 클리어! 💰 +100");setTimeout(home,900);
+ }
+ if(mode==="fight"){
+  const hp=Math.max(0,player.hp);
+  document.getElementById("hpText").textContent=hp+"/100";
+  document.getElementById("hpFill").style.width=hp+"%";
+ }
+}
+function draw(){
+ ctx.clearRect(0,0,W,H);
+ const g=ctx.createLinearGradient(0,0,W,H);g.addColorStop(0,"#101333");g.addColorStop(.55,"#25175c");g.addColorStop(1,"#087f91");ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ ctx.save();ctx.translate(-camera,0);
+ ctx.fillStyle="#54b95c";ctx.fillRect(0,650,5000,200);
+ for(const p of platforms()){ctx.fillStyle="#686b85";ctx.fillRect(p.x,p.y,p.w,p.h);ctx.fillStyle="#9296b5";ctx.fillRect(p.x,p.y,p.w,6)}
+ if(mode==="home"){
+  ctx.font="50px Arial";
+  npcs.forEach((n,i)=>{let y=600;if(n==="🕴")y=520+Math.sin(Date.now()/300)*25;ctx.fillText(n,500+i*220,y)});
+ }
+ if(mode==="obby"){ctx.font="65px Arial";ctx.fillText("💰",4170,260);ctx.font="25px Arial";ctx.fillStyle="#fff";ctx.fillText("보상 골인!",4160,300)}
+ if(mode==="math"){
+  ctx.font="25px Arial";ctx.fillStyle="#fff";
+  for(let i=0;i<mathQuestions.length;i++){
+   const x=610+i*300;
+   ctx.fillText(i<mathIndex?"✓":"?",x,Math.max(120,560-i*80));
+  }
+ }
+ if(mode==="fight"){
+  for(const e of enemies){
+   if(!e.alive)continue;
+   ctx.font="52px Arial";ctx.fillText(e.emoji,e.x,e.y);
+   ctx.font="16px Arial";ctx.fillStyle="#ff526d";ctx.fillText("❤".repeat(e.hp),e.x,e.y-13);
+   if(Math.abs(player.x-e.x)<70&&e.attack>40){ctx.font="32px Arial";ctx.fillText("⚔️",e.x-8,e.y-48)}
+  }
+  if(enemies.every(e=>!e.alive)){ctx.font="34px Arial";ctx.fillStyle="#fff";ctx.fillText("🎉 모두 처치!",player.x-70,player.y-50)}
+  if(attacking){ctx.font="55px Arial";ctx.fillText("⚔️",player.x+35,player.y+30)}
+ }
+ ctx.globalAlpha=player.inv>0&&Math.floor(player.inv/5)%2===0?.35:1;
+ ctx.font="55px Arial";ctx.fillText(avatar,player.x,player.y+player.h);
+ ctx.globalAlpha=1;
+ ctx.restore();
+}
+
+
+function bindHold(id,set){
+ const b=document.getElementById(id);
+ b.addEventListener("pointerdown",e=>{e.preventDefault();set(true)});
+ ["pointerup","pointercancel","pointerleave"].forEach(x=>b.addEventListener(x,()=>set(false)));
+}
+bindHold("left",v=>left=v);bindHold("right",v=>right=v);
+document.getElementById("jump").addEventListener("pointerdown",e=>{e.preventDefault();jump()});
+
+addEventListener("keydown",e=>{
+ if(e.key==="ArrowLeft"){e.preventDefault();left=true}
+ if(e.key==="ArrowRight"){e.preventDefault();right=true}
+ if(e.key==="ArrowUp"||e.key===" "||e.key.toLowerCase()==="w"){e.preventDefault();jump()}
+ if(e.key.toLowerCase()==="a"){e.preventDefault();left=true}
+ if(e.key.toLowerCase()==="d"){e.preventDefault();right=true}
+ if(e.key.toLowerCase()==="f"){e.preventDefault();attack()}
+});
+addEventListener("keyup",e=>{
+ if(e.key==="ArrowLeft"||e.key.toLowerCase()==="a"){e.preventDefault();left=false}
+ if(e.key==="ArrowRight"||e.key.toLowerCase()==="d"){e.preventDefault();right=false}
+});
+
+function loop(){update();draw();requestAnimationFrame(loop)}
+moneyUI();avatarUI();home();loop();
+</script>
+</body>
+</html>
